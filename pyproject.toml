@@ -1,0 +1,29 @@
+[project]
+name = "local-pdf-rag-assistant"
+version = "0.1.0"
+description = "Local-Hardware Two-Tier PDF RAG Assistant (PyTorch GPU + FAISS QT_fp16 + Page Citations)"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "faiss-cpu>=1.15.1",
+    "openai>=3.46.0",
+    "pymupdf>=2.0",
+    "python-dotenv>=1.2.4",
+    "ruff>=0.17.3",
+    "sentence-transformers>=6.2.0",
+    "torch>=2.6.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'win32' or sys_platform == 'linux'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
