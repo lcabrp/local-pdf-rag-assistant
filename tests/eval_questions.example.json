@@ -1,0 +1,13 @@
+[
+  {
+    "question": "Replace with a question about an exact error code, clause, or identifier in your PDFs.",
+    "expected_source": "example_manual.pdf",
+    "expected_page": 42,
+    "expected_keywords": ["E-409", "relief valve"]
+  },
+  {
+    "question": "Replace with a paraphrased conceptual question whose wording differs from the PDF text.",
+    "expected_source": "example_manual.pdf",
+    "expected_keywords": ["calibration"]
+  }
+]

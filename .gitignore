@@ -1,7 +1,13 @@
 .venv/
 __pycache__/
 *.py[cod]
+*.egg-info/
+dist/
+build/
 .ruff_cache/
 .env
 index/
+data/pdfs/*
+!data/pdfs/.gitkeep
+repomix-output.*
 
