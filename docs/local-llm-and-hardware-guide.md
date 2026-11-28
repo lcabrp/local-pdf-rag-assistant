@@ -12,19 +12,24 @@ This document summarizes the complete **`local-pdf-rag-assistant`** architecture
    - **Child Chunks (~250 chars, word-boundary safe):** Embedded with `all-mpnet-base-v2` into a 16-bit quantized FAISS index (`QT_fp16`, cutting index size by 50%) and indexed into an in-memory **Okapi BM25** inverted index.
    - **Parent Store (~1,500 chars, 200-char overlap):** Stored in `index/metadata.json` with `source` filename and 1-based `page` number.
 2. **4-Stage Local Retrieval Pipeline (`retrieve_for_query`):**
-   - **Stage 1:** Dense FAISS (`candidate_k=25`) + Lexical Okapi BM25 (`candidate_k=25` via `src/pdf_rag/hybrid_search.py`).
+   - **Optional Pre-Stage:** **Expand query (Multi-Query)** (`expand_query()`) generates 2 alternative queries (paraphrase + concept/solution query) to bridge vocabulary gaps before search.
+   - **Stage 1:** Dense FAISS (`candidate_k=50`) + Lexical Okapi BM25 with light inflection stemming (`candidate_k=50` via `src/pdf_rag/hybrid_search.py`).
    - **Stage 2:** Scale-invariant **Reciprocal Rank Fusion (`rrf_k=60`)**.
-   - **Stage 3:** Deduplicated Parent expansion (`rerank_candidates=10` unique 1,500-char windows).
-   - **Stage 4:** Local GPU **Cross-Encoder Reranking** (`cross-encoder/ms-marco-MiniLM-L-6-v2`) $\to$ **top 3 parents**.
+   - **Stage 3:** Deduplicated Parent expansion (`rerank_candidates=15` unique 1,500-char windows).
+   - **Stage 4:** Local GPU **Cross-Encoder Reranking** (`cross-encoder/ms-marco-MiniLM-L-6-v2`, max-scoring across any Multi-Query variants) $\to$ **top 4 parents**.
 3. **Grounding, Inspection & Evaluation (`src/pdf_rag/app.py`, `scripts/eval_retrieval.py`):**
+   - **Fast Unchanged-Folder Load:** Checks MD5 file hashes *before* PyMuPDF parsing so unchanged directories skip PDF extraction completely.
    - **Documents only (refuse if not found):** Defaults to `True` so the app refuses to guess from general LLM weights when no PDF passage matches.
-   - **Show retrieved passages:** Optional GUI checkbox to inspect the exact 3 parent passages before the LLM answer (separating retrieval errors from generation errors).
-   - **Verified Page Citations:** Maps `[1]..[3]` labels back to `<filename>.pdf, page <N>` and drops any ungrounded label.
+   - **Show retrieved passages:** Optional GUI checkbox to inspect the exact 4 parent passages before the LLM answer (separating retrieval errors from generation errors).
+   - **Expand query (Multi-Query):** Optional GUI checkbox to print and search 2 LLM-generated query variants alongside your original question.
+   - **Verified Page Citations:** Maps `[1]..[4]` labels back to `<filename>.pdf, page <N>` and drops any ungrounded label.
    - **Defensive Small-Model JSON Parsing:** `_parse_confidence()` and `_resolve_sources()` gracefully handle string confidence levels (`"High"` $\to$ `85%`) and string `"sources"` fields emitted by compact local models.
    - **Local Retrieval Benchmark (`scripts/eval_retrieval.py`):** Evaluates Dense-only vs. Hybrid+Rerank Hit@3 latency and accuracy locally with zero OpenAI calls.
 4. **Local-First LLM Generation with No-CPU-Spill Guard (`src/pdf_rag/llm_client.py`):**
-   - Calls local **Ollama (`/api/chat`)** first with `"think": false`, `"format": "json"`, and a fixed `"num_ctx": 4096` (prevents model reloads and keeps KV cache small in VRAM).
+   - Calls local **Ollama (`/api/chat`)** first with `"think": false`, `"format": "json"`, a fixed `"num_ctx": 4096`, and `num_predict: 2048` (`1024` for query expansion) so reasoning GGUFs like `LFM2.5-8B-A1B` never truncate before emitting `message.content`.
    - Inspects Ollama's **`/api/ps`** endpoint (`size_vram` vs `size`). If any layers spill to CPU (`size_vram < 99%` of `size`) or Ollama is unreachable/malformed, it automatically falls back to **OpenAI (`gpt-6-luna`)**.
+5. **Python Environment Note:**
+   - Pinned to **Python 3.14.10** (`.python-version`, `requires-python = ">=3.13,<3.15"` in `pyproject.toml`) because `faiss-cpu==1.16.0` does not yet ship Windows (`win_amd64`) wheels for Python 3.15.
 
 ---
 

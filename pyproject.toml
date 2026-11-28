@@ -3,7 +3,7 @@ name = "local-pdf-rag-assistant"
 version = "0.1.0"
 description = "Local-Hardware Two-Tier PDF RAG Assistant (PyTorch GPU + FAISS QT_fp16 + Page Citations)"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<3.15"
 dependencies = [
     "faiss-cpu>=1.15.1",
     "openai>=3.46.0",

@@ -132,8 +132,14 @@ class LocalFirstLLMClient:
         messages: list[dict[str, str]],
         json_mode: bool = False,
         temperature: float = 0.1,
-        num_predict: int = 1024,
+        num_predict: int = 2048,
     ) -> str:
+        # Why `num_predict` defaults to 2048 (not 150-512):
+        # `num_predict` is an upper bound; non-thinking models stop at EOS right after
+        # the closing `}` with zero extra latency. However, some HuggingFace GGUF
+        # reasoning models (e.g. LFM2.5-8B-A1B) ignore `"think": false` and count
+        # `message.thinking` tokens against `num_predict`—if the cap is too low, they
+        # hit `done_reason: "length"` before emitting `message.content` (returning "").
         payload: dict = {
             "model": self.ollama_model,
             "stream": False,
@@ -187,7 +193,7 @@ class LocalFirstLLMClient:
         messages: list[dict[str, str]],
         json_mode: bool = False,
         prefer_local: bool = True,
-        num_predict: int = 1024,
+        num_predict: int = 2048,
     ) -> LLMResult:
         """Send chat messages using local Ollama first, falling back to OpenAI on error or CPU spill."""
         fallback_reason: str | None = None
@@ -234,17 +240,19 @@ class LocalFirstLLMClient:
         alternative queries bridges that vocabulary gap before FAISS + BM25 search.
         """
         prompt = (
-            f"Rewrite the search query below into {max_variants} short alternative search "
-            "queries that use synonyms or closely related technical concepts to improve "
-            "document retrieval.\n\n"
-            f"Original query: {query}\n\n"
+            f"Write {max_variants} short search queries to find the answer to the question "
+            "below in technical documentation or textbooks:\n"
+            "1. A different wording of the same question.\n"
+            "2. A keyword query naming the likely underlying data structure, function, "
+            "API, or textbook topic that solves it.\n\n"
+            f"Question: {query}\n\n"
             'Reply with a single JSON object only: {"queries": ["query 1", "query 2"]}'
         )
         try:
             result = self.chat(
                 messages=[{"role": "user", "content": prompt}],
                 json_mode=True,
-                num_predict=150,
+                num_predict=1024,
             )
             parsed = json.loads(result.content or "{}")
             raw_queries = parsed.get("queries", [])
